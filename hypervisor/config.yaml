@@ -1,0 +1,5 @@
+compute:
+  host: 192.168.1.15
+  path: /hypervisor/stats
+  port: 8080
+  protocol: http

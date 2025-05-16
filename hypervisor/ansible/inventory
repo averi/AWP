@@ -1,0 +1,7 @@
+[hypervisors]
+192.168.1.12
+192.168.1.17
+
+[hypervisors:vars]
+src_dir=/home/averi/Rust/AWP/hypervisor/
+dst_dir=/root/awp_hypervisor

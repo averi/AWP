@@ -1,0 +1,25 @@
+[package]
+name = "awp_hypervisor"
+version = "0.0.1"
+authors = ["Andrea Veri <andrea.veri@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+sysinfo = "0.33.1"
+gethostname = "1.0.0"
+virt = "0.4.2"
+serde_json = "1.0.140"
+serde_yaml = "0.9"
+serde = { version = "1.0.219", features = ["derive"]}
+
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hyper = { version = "0.14", features = ["server"] }
+reqwest = "0.12.14"
+thiserror = "2.0.12"
+rtnetlink = "0.16.0"
+futures = "0.3"
+indoc = "2"

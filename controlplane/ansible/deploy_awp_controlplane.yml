@@ -1,0 +1,29 @@
+---
+- name: Deploy AWP Hypervisor
+  hosts: controlplane
+  remote_user: root
+  gather_facts: no
+  tasks:
+    - name: Ensure the awp_controlplane directory exists
+      file:
+        path: "{{ dst_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Stop any running awp_controlplane processes
+      command: pkill -f awp_controlplane
+      ignore_errors: yes
+
+    - name: Sync controlplane files (excluding target directory)
+      synchronize:
+        src: "{{ src_dir }}"
+        dest: "{{ dst_dir }}"
+        rsync_opts:
+          - "--exclude=target"
+
+    - name: Start AWP Control Plane in tmux
+      command:
+        cmd: tmux new-session -A -d -s cargo_session 'cargo run --package awp_controlplane --bin awp_controlplane'
+        chdir: "{{ dst_dir }}"
+      environment:
+        DATABASE_URL: "postgres://awp:password@192.168.1.15/awp"

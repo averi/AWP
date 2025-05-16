@@ -1,0 +1,129 @@
+---
+- name: Setup AWP PostgreSQL Database
+  hosts: database
+  gather_facts: false
+  remote_user: root
+  tasks:
+    - name: Install PostgreSQL dependencies
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-server
+          - python3-psycopg2
+        state: present
+        update_cache: true
+
+    - name: Drop existing database (if it exists)
+      community.postgresql.postgresql_db:
+        name: "{{ db_name }}"
+        state: absent
+      become_user: postgres
+      become: true
+
+    - name: Create a new database
+      community.postgresql.postgresql_db:
+        name: "{{ db_name }}"
+        owner: "{{ db_user }}"
+        state: present
+      become_user: postgres
+      become: true
+
+    - name: Grant all privileges on the database
+      community.postgresql.postgresql_privs:
+        db: "{{ db_name }}"
+        role: "{{ db_user }}"
+        privs: "ALL"
+      become_user: postgres
+      become: true
+
+    - name: Alter database owner to awp
+      community.postgresql.postgresql_query:
+        db: "postgres"
+        query: "ALTER DATABASE {{ db_name }} OWNER TO {{ db_user }};"
+      become_user: postgres
+      become: true
+
+    - name: Copy the database schema file
+      ansible.builtin.copy:
+        dest: "{{ schema_file }}"
+        content: |
+          CREATE TABLE tenants (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(50) NOT NULL UNIQUE
+          );
+
+          CREATE TABLE vpcs (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(50) NOT NULL,
+              tenant UUID NOT NULL,
+              cidr VARCHAR(50) NOT NULL,
+              nat BOOLEAN NOT NULL DEFAULT false,
+
+              CONSTRAINT fk_vpc_tenant FOREIGN KEY (tenant) REFERENCES tenants(id) ON DELETE CASCADE
+          );
+
+          CREATE TABLE hypervisors (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              hostname VARCHAR(50) NOT NULL,
+              total_ram INTEGER NOT NULL CHECK (total_ram > 0),
+              total_cpu INTEGER NOT NULL CHECK (total_cpu > 0),
+              used_ram INTEGER NOT NULL CHECK (used_ram > 0),
+              used_cpu INTEGER NOT NULL CHECK (used_cpu > 0),
+              hosted_vms INTEGER NOT NULL CHECK (hosted_vms >= 0),
+              arch VARCHAR CHECK (arch IN ('aarch64', 'x86_64'))
+          );
+
+          CREATE TABLE ssh_pub_keys (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              tenant UUID NOT NULL,
+              ssh_pub_key VARCHAR(1000) NOT NULL,
+              name VARCHAR(50) UNIQUE NOT NULL,
+              fingerprint VARCHAR(50) UNIQUE NOT NULL,
+
+              CONSTRAINT fk_resource_tenant FOREIGN KEY (tenant) REFERENCES tenants(id) ON DELETE CASCADE
+          );
+
+          CREATE TABLE vms (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(50) NOT NULL UNIQUE,
+              tenant UUID NOT NULL,
+              os VARCHAR(50) NOT NULL,
+              ram INTEGER NOT NULL CHECK (ram > 0),
+              cpu INTEGER NOT NULL CHECK (cpu > 0),
+              disk_size INTEGER NOT NULL CHECK (disk_size > 0),
+              vpc UUID NOT NULL,
+              hypervisor UUID NOT NULL,
+              ssh_pub_key UUID NOT NULL,
+              state VARCHAR NOT NULL CHECK (status IN ('created', 'shutoff', 'running')),
+              networking VARCHAR NOT NULL CHECK (networking IN ('l2-tenant', 'l2-tenant-nat', 'l2-bridged')),
+              network VARCHAR,
+              ip_addresses inet[] NOT NULL DEFAULT ARRAY[]::inet[],
+
+              CONSTRAINT fk_resource_tenant FOREIGN KEY (tenant) REFERENCES tenants(id) ON DELETE CASCADE,
+              CONSTRAINT fk_resource_vpc FOREIGN KEY (vpc) REFERENCES vpcs(id) ON DELETE SET NULL,
+              CONSTRAINT fk_resource_hyperv FOREIGN KEY (hypervisor) REFERENCES hypervisors(id) ON DELETE CASCADE,
+              CONSTRAINT fk_resource_ssh_pub_key FOREIGN KEY (ssh_pub_key) REFERENCES ssh_pub_keys(id),
+              CONSTRAINT fk_resource_network FOREIGN KEY (network) REFERENCES provider_networks(name)
+          );
+
+          CREATE TABLE provider_networks (
+              name VARCHAR(50) PRIMARY KEY,
+              vlan INTEGER NOT NULL CHECK (vlan BETWEEN 1 AND 4094)
+          );
+
+          CREATE TABLE ports (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(50) NOT NULL,
+              vpc UUID NOT NULL,
+              hypervisor UUID NOT NULL,
+
+              CONSTRAINT fk_resource_vpc FOREIGN KEY (vpc) REFERENCES vpcs(id) ON DELETE CASCADE,
+              CONSTRAINT fk_resource_hyperv FOREIGN KEY (hypervisor) REFERENCES hypervisors(id) ON DELETE CASCADE
+          );
+
+    - name: Import the SQL schema as the awp user
+      ansible.builtin.command: psql -U {{ db_user }} -d {{ db_name }} -h 127.0.0.1 -f {{ schema_file }}
+      become_user: postgres
+      become: true
+      environment:
+        PGPASSWORD="{{ db_password }}"

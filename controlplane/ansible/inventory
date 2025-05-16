@@ -1,0 +1,15 @@
+[controlplane]
+192.168.1.15
+
+[database]
+192.168.1.15
+
+[controlplane:vars]
+src_dir=/home/averi/Rust/AWP/controlplane/
+dst_dir=/root/awp_controlplane
+
+[database:vars]
+db_name=awp
+db_user=awp
+db_password=password
+schema_file=/tmp/awp.sql

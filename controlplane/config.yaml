@@ -1,0 +1,10 @@
+controlplane:
+  db_host: 192.168.1.15
+  db_user: awp
+  db_port: 5432
+  db_password: password
+  db_name: awp
+
+ovn:
+  host: 192.168.1.15
+  port: 6641
