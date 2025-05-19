@@ -1,3 +1,6 @@
+// Copyright: (c) 2025, Andrea Veri <andrea.veri@gmail.com>
+// GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Loader2 } from 'lucide-react';
